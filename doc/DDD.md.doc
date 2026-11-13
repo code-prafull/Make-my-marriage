@@ -1,0 +1,1285 @@
+# Database Design Document (DDD)
+## Indian Wedding Management Platform — MERN Stack
+
+**Version:** 1.0
+**Status:** Initial Database Design
+**Database:** MongoDB Atlas
+**ODM:** Mongoose
+**Validation:** Zod + Mongoose
+**Architecture:** Modular Monolith
+**Technology Stack:** React.js + Node.js + Express.js + MongoDB
+
+---
+
+# 1. Database Overview
+
+## 1.1 Objective
+
+The database provides centralized data storage for managing Indian wedding workspaces.
+
+It supports:
+
+- User authentication and profiles.
+- Wedding workspace management.
+- Family member collaboration.
+- Wedding events and ceremonies.
+- Guest management.
+- Manager invitations and membership approval.
+- Personalized wedding websites.
+- Shared wedding photo galleries.
+- Secure public website and gallery access.
+- Workspace activity history.
+
+## 1.2 Database Strategy
+
+**Strategy: Shared Database with Multi-Tenant Data Isolation**
+
+All wedding workspaces use the same MongoDB database.
+
+Every wedding-specific document contains a `weddingId` field to identify its workspace.
+
+```text
+MongoDB Atlas
+│
+└── wedding_management
+    │
+    ├── users
+    ├── weddings
+    ├── weddingMembers
+    ├── managerInvitations
+    ├── events
+    ├── guests
+    ├── galleryAssets
+    ├── publicAccessTokens
+    └── auditLogs
+```
+
+## 1.3 Data Isolation
+
+Every wedding-specific database operation must include the corresponding `weddingId`.
+
+Example using Mongoose:
+
+```javascript
+const events = await Event.find({
+  weddingId: requestedWeddingId
+});
+```
+
+The Express backend must verify that the authenticated user has permission to access the requested wedding before executing the query.
+
+Never rely on frontend route protection for database security.
+
+---
+
+# 2. Collection Design
+
+The initial database contains nine collections.
+
+| Collection | Responsibility |
+|---|---|
+| users | User accounts and profiles |
+| weddings | Wedding workspace information |
+| weddingMembers | Workspace membership and roles |
+| managerInvitations | Manager invitation workflow |
+| events | Wedding ceremonies and events |
+| guests | Wedding guest information |
+| galleryAssets | Photo and video metadata |
+| publicAccessTokens | Website and gallery access |
+| auditLogs | Important workspace activity history |
+
+---
+
+# 3. Detailed Collection Schema
+
+## 3.1 Users Collection
+
+**Purpose:** Store registered user accounts.
+
+Only registered users can become workspace members. Guests do not require user accounts.
+
+**Collection:** `users`
+
+### Mongoose Schema
+
+```javascript
+import mongoose from "mongoose";
+
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
+    },
+
+    passwordHash: {
+      type: String,
+      required: true,
+      select: false
+    },
+
+    phone: {
+      type: String,
+      trim: true
+    },
+
+    avatar: {
+      type: String
+    },
+
+    isEmailVerified: {
+      type: Boolean,
+      default: false
+    },
+
+    status: {
+      type: String,
+      enum: ["ACTIVE", "SUSPENDED"],
+      default: "ACTIVE"
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+export default mongoose.model("User", userSchema);
+```
+
+### Indexes
+
+```javascript
+userSchema.index(
+  { email: 1 },
+  { unique: true }
+);
+```
+
+### Rules
+
+- Email must be unique.
+- Passwords must be securely hashed using bcrypt.
+- Plain-text passwords must never be stored.
+- Suspended users cannot access protected workspaces.
+- Password hashes should not be returned in normal queries.
+
+---
+
+## 3.2 Weddings Collection
+
+**Purpose:** Store the main wedding workspace information.
+
+A registered user creates a wedding workspace manually from the dashboard.
+
+**Collection:** `weddings`
+
+### Mongoose Schema
+
+```javascript
+const weddingSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    couple: {
+      partnerOne: {
+        type: String,
+        required: true
+      },
+
+      partnerTwo: {
+        type: String,
+        required: true
+      }
+    },
+
+    weddingDate: {
+      type: Date
+    },
+
+    location: {
+      venue: String,
+      address: String,
+      city: String,
+      state: String,
+      country: {
+        type: String,
+        default: "India"
+      }
+    },
+
+    description: {
+      type: String
+    },
+
+    status: {
+      type: String,
+      enum: ["PLANNING", "COMPLETED", "ARCHIVED"],
+      default: "PLANNING"
+    },
+
+    website: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+
+      template: {
+        type: String,
+        default: "DEFAULT"
+      },
+
+      visibility: {
+        type: String,
+        enum: ["PUBLIC", "LINK_ONLY"],
+        default: "LINK_ONLY"
+      },
+
+      publishedAt: Date
+    },
+
+    settings: {
+      timezone: {
+        type: String,
+        default: "Asia/Kolkata"
+      },
+
+      currency: {
+        type: String,
+        default: "INR"
+      },
+
+      language: {
+        type: String,
+        default: "en"
+      }
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+export default mongoose.model("Wedding", weddingSchema);
+```
+
+### Indexes
+
+```javascript
+weddingSchema.index({ createdBy: 1 });
+
+weddingSchema.index(
+  { slug: 1 },
+  { unique: true }
+);
+```
+
+### Relationships
+
+- One wedding belongs to one creator.
+- One wedding can have multiple members.
+- One wedding can contain multiple events.
+- One wedding can contain multiple guests.
+- One wedding can contain multiple gallery assets.
+- One wedding can have multiple manager invitations.
+- One wedding can have multiple public access tokens.
+
+---
+
+## 3.3 Wedding Members Collection
+
+**Purpose:** Manage users who collaborate inside a wedding workspace.
+
+Supported roles:
+
+- ADMIN
+- MANAGER
+
+Guests are not workspace members.
+
+**Collection:** `weddingMembers`
+
+### Mongoose Schema
+
+```javascript
+const weddingMemberSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    role: {
+      type: String,
+      enum: ["ADMIN", "MANAGER"],
+      required: true
+    },
+
+    status: {
+      type: String,
+      enum: ["PENDING", "ACTIVE", "REJECTED"],
+      default: "PENDING"
+    },
+
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    joinedAt: Date
+  },
+  {
+    timestamps: true
+  }
+);
+
+weddingMemberSchema.index(
+  { weddingId: 1, userId: 1 },
+  { unique: true }
+);
+
+weddingMemberSchema.index(
+  { userId: 1, status: 1 }
+);
+
+weddingMemberSchema.index(
+  { weddingId: 1, role: 1, status: 1 }
+);
+
+export default mongoose.model(
+  "WeddingMember",
+  weddingMemberSchema
+);
+```
+
+### Rules
+
+- The wedding creator automatically becomes ADMIN.
+- ADMIN has complete workspace control.
+- MANAGER can manage wedding operations.
+- MANAGER cannot delete the workspace or remove ADMIN ownership.
+- Membership must be ACTIVE before accessing workspace resources.
+- A user cannot have duplicate membership in the same wedding.
+- A user's role is resolved separately for each wedding.
+
+---
+
+## 3.4 Manager Invitations Collection
+
+**Purpose:** Manage invitations for users who want to become wedding workspace members.
+
+**Collection:** `managerInvitations`
+
+### Mongoose Schema
+
+```javascript
+const managerInvitationSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true
+    },
+
+    tokenHash: {
+      type: String,
+      required: true,
+      unique: true,
+      select: false
+    },
+
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    status: {
+      type: String,
+      enum: [
+        "PENDING",
+        "ACCEPTED",
+        "EXPIRED",
+        "REVOKED"
+      ],
+      default: "PENDING"
+    },
+
+    expiresAt: {
+      type: Date,
+      required: true
+    },
+
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    acceptedAt: Date
+  },
+  {
+    timestamps: true
+  }
+);
+
+managerInvitationSchema.index(
+  { tokenHash: 1 },
+  { unique: true }
+);
+
+managerInvitationSchema.index(
+  { weddingId: 1, email: 1 }
+);
+
+managerInvitationSchema.index(
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0 }
+);
+
+export default mongoose.model(
+  "ManagerInvitation",
+  managerInvitationSchema
+);
+```
+
+### Invitation Workflow
+
+1. ADMIN invites a manager through email.
+2. Express generates a cryptographically secure random token.
+3. The token hash is stored in MongoDB.
+4. The invited user opens the invitation URL.
+5. The user signs up or logs in.
+6. The user submits a membership request.
+7. A PENDING membership record is created.
+8. ADMIN approves the membership request.
+9. The membership status becomes ACTIVE.
+
+**Important:** Invitation acceptance and membership approval are two different operations. Accepting an invitation must not automatically grant workspace access.
+
+The TTL index is for automatic cleanup of expired records. Application logic must still validate `expiresAt` because TTL deletion is not immediate.
+
+---
+
+## 3.5 Events Collection
+
+**Purpose:** Store individual wedding ceremonies and events.
+
+Examples:
+
+- Haldi
+- Mehendi
+- Sangeet
+- Wedding
+- Reception
+
+**Collection:** `events`
+
+### Mongoose Schema
+
+```javascript
+const eventSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    description: String,
+
+    date: {
+      type: Date,
+      required: true
+    },
+
+    startTime: String,
+
+    endTime: String,
+
+    venue: {
+      name: String,
+      address: String
+    },
+
+    status: {
+      type: String,
+      enum: ["UPCOMING", "COMPLETED", "CANCELLED"],
+      default: "UPCOMING"
+    },
+
+    visibility: {
+      type: String,
+      enum: ["PUBLIC", "PRIVATE"],
+      default: "PRIVATE"
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+eventSchema.index({ weddingId: 1, date: 1 });
+
+eventSchema.index({ weddingId: 1, status: 1 });
+
+export default mongoose.model("Event", eventSchema);
+```
+
+### Rules
+
+- Every event belongs to one wedding.
+- Events can be public or private.
+- Only authorized workspace members can create, update, or delete events.
+- Only published public events can appear on the public wedding website.
+- Event dates and times must be interpreted using the wedding's configured timezone.
+
+---
+
+## 3.6 Guests Collection
+
+**Purpose:** Store wedding guest information.
+
+Guests do not need accounts or workspace roles.
+
+**Collection:** `guests`
+
+### Mongoose Schema
+
+```javascript
+const guestSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true
+    },
+
+    phone: String,
+
+    familyGroup: String,
+
+    side: {
+      type: String,
+      enum: ["BRIDE", "GROOM", "COMMON"],
+      default: "COMMON"
+    },
+
+    eventIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Event"
+      }
+    ],
+
+    notes: String,
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+guestSchema.index({ weddingId: 1, name: 1 });
+
+guestSchema.index({ weddingId: 1, phone: 1 });
+
+export default mongoose.model("Guest", guestSchema);
+```
+
+### Rules
+
+- Guests do not authenticate.
+- Guests do not become wedding members.
+- Guests cannot upload gallery content.
+- Guests can access published wedding information through the public wedding website.
+- `eventIds` identifies events associated with a guest.
+- Every referenced event must belong to the same wedding.
+
+---
+
+## 3.7 Gallery Assets Collection
+
+**Purpose:** Store metadata for wedding photographs and videos.
+
+Actual media files are stored in external object storage, such as Cloudinary.
+
+**Collection:** `galleryAssets`
+
+### Mongoose Schema
+
+```javascript
+const galleryAssetSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    fileName: {
+      type: String,
+      required: true
+    },
+
+    storageKey: {
+      type: String,
+      required: true
+    },
+
+    fileUrl: String,
+
+    mediaType: {
+      type: String,
+      enum: ["IMAGE", "VIDEO"],
+      required: true
+    },
+
+    mimeType: {
+      type: String,
+      required: true
+    },
+
+    fileSize: {
+      type: Number,
+      required: true
+    },
+
+    uploadedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Event"
+    },
+
+    visibility: {
+      type: String,
+      enum: ["PUBLIC", "PRIVATE"],
+      default: "PRIVATE"
+    },
+
+    status: {
+      type: String,
+      enum: ["ACTIVE", "DELETED"],
+      default: "ACTIVE"
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+galleryAssetSchema.index(
+  { weddingId: 1, createdAt: -1 }
+);
+
+galleryAssetSchema.index(
+  { weddingId: 1, eventId: 1 }
+);
+
+galleryAssetSchema.index(
+  { weddingId: 1, visibility: 1, status: 1 }
+);
+
+export default mongoose.model(
+  "GalleryAsset",
+  galleryAssetSchema
+);
+```
+
+### Rules
+
+- Authorized family members can upload media.
+- Cameramen can receive a separate upload-only permission.
+- Guests can view only publicly shared gallery content.
+- Guests cannot upload or delete media.
+- Private media requires authorization.
+- Media deletion must be scoped to the correct wedding.
+- The Cloudinary public ID should be stored in `storageKey` or a dedicated field so the asset can be deleted from external storage.
+
+---
+
+## 3.8 Public Access Tokens Collection
+
+**Purpose:** Manage secure access to public wedding websites and shared galleries.
+
+Supported purposes:
+
+- WEDDING_WEBSITE
+- GALLERY_VIEW
+
+**Collection:** `publicAccessTokens`
+
+### Mongoose Schema
+
+```javascript
+const publicAccessTokenSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    purpose: {
+      type: String,
+      enum: ["WEDDING_WEBSITE", "GALLERY_VIEW"],
+      required: true
+    },
+
+    tokenHash: {
+      type: String,
+      required: true,
+      unique: true,
+      select: false
+    },
+
+    status: {
+      type: String,
+      enum: ["ACTIVE", "REVOKED", "EXPIRED"],
+      default: "ACTIVE"
+    },
+
+    expiresAt: Date,
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+publicAccessTokenSchema.index(
+  { tokenHash: 1 },
+  { unique: true }
+);
+
+publicAccessTokenSchema.index(
+  { weddingId: 1, purpose: 1, status: 1 }
+);
+
+export default mongoose.model(
+  "PublicAccessToken",
+  publicAccessTokenSchema
+);
+```
+
+### Rules
+
+- Tokens must be cryptographically random.
+- Store token hashes, never raw secret tokens.
+- Website and gallery tokens must be independent.
+- Tokens can be revoked.
+- Token validation must be rate-limited.
+- Public access must respect website and gallery visibility settings.
+- An active token must not override a PRIVATE visibility setting.
+
+---
+
+## 3.9 Audit Logs Collection
+
+**Purpose:** Maintain a record of important workspace operations.
+
+**Collection:** `auditLogs`
+
+### Mongoose Schema
+
+```javascript
+const auditLogSchema = new mongoose.Schema(
+  {
+    weddingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wedding",
+      required: true
+    },
+
+    actorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true
+    },
+
+    action: {
+      type: String,
+      required: true
+    },
+
+    entityType: {
+      type: String,
+      required: true
+    },
+
+    entityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true
+    },
+
+    metadata: {
+      type: mongoose.Schema.Types.Mixed
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+auditLogSchema.index(
+  { weddingId: 1, createdAt: -1 }
+);
+
+auditLogSchema.index(
+  { actorId: 1, createdAt: -1 }
+);
+
+export default mongoose.model("AuditLog", auditLogSchema);
+```
+
+### Examples
+
+- WEDDING_CREATED
+- MEMBER_APPROVED
+- MEMBER_REMOVED
+- EVENT_CREATED
+- EVENT_UPDATED
+- GUEST_ADDED
+- GALLERY_ASSET_UPLOADED
+- WEBSITE_VISIBILITY_UPDATED
+
+Audit logs should be append-only through application logic. Sensitive information such as passwords, authentication tokens, and private credentials must never be recorded.
+
+---
+
+# 4. Entity Relationships
+
+## 4.1 High-Level Relationship Model
+
+```text
+User
+ |
+ | 1:N
+ |
+WeddingMember
+ |
+ | N:1
+ |
+Wedding
+ |
+ |--------------------------------|
+ |        |        |              |
+ v        v        v              v
+Events   Guests  GalleryAssets  ManagerInvitations
+ |        |
+ |        |
+ |        | eventIds
+ |        |
+ |        v
+ |      Events
+ |
+ v
+GalleryAssets
+
+Wedding
+  |
+  |---- PublicAccessTokens
+  |
+  |---- AuditLogs
+```
+
+## 4.2 Relationship Summary
+
+| Parent | Child | Relationship |
+|---|---|---|
+| User | Wedding | One-to-Many (creator) |
+| User | WeddingMember | One-to-Many |
+| Wedding | WeddingMember | One-to-Many |
+| Wedding | ManagerInvitation | One-to-Many |
+| Wedding | Event | One-to-Many |
+| Wedding | Guest | One-to-Many |
+| Wedding | GalleryAsset | One-to-Many |
+| Wedding | PublicAccessToken | One-to-Many |
+| Wedding | AuditLog | One-to-Many |
+| Event | GalleryAsset | One-to-Many (optional reference) |
+| Event | Guest | Many-to-Many through `eventIds` |
+
+MongoDB relationships use ObjectId references.
+
+---
+
+# 5. Database Indexing Strategy
+
+Indexes will be created based on actual query patterns.
+
+Principles:
+
+1. Every wedding-specific collection must support `weddingId` filtering.
+2. Frequently queried fields should have appropriate indexes.
+3. Unique constraints must prevent duplicate users and memberships.
+4. Compound indexes should match common filtering and sorting operations.
+5. Avoid unnecessary indexes because they increase write overhead.
+6. Validate query performance using MongoDB explain plans.
+
+Unique indexes must be created and verified in the database. Mongoose's `unique: true` option creates an index; it is not a normal validation rule.
+
+---
+
+# 6. Data Validation Strategy
+
+Validation happens at two levels.
+
+## 6.1 Zod Validation
+
+Zod validates incoming Express API request data.
+
+Examples:
+
+- Required fields.
+- Valid email addresses.
+- Allowed enum values.
+- Valid MongoDB ObjectId formats.
+- Date and string validation.
+- File metadata validation.
+
+Example:
+
+```javascript
+import { z } from "zod";
+
+export const createEventSchema = z.object({
+  name: z.string().trim().min(1),
+
+  description: z.string().optional(),
+
+  date: z.coerce.date(),
+
+  visibility: z.enum(["PUBLIC", "PRIVATE"])
+});
+```
+
+## 6.2 Mongoose Validation
+
+Mongoose schemas enforce application-level database constraints.
+
+Examples:
+
+- Required fields.
+- Enum restrictions.
+- Default values.
+- Minimum and maximum values.
+- Schema-level validation.
+- Unique database indexes.
+
+**Important:** Zod validation does not replace database constraints or authorization.
+
+---
+
+# 7. Database Security
+
+## 7.1 Authentication
+
+- Passwords must be hashed using bcrypt.
+- JWT authentication must be implemented securely.
+- JWT should be stored in an HttpOnly cookie.
+- Password hashes must not be exposed in API responses.
+
+## 7.2 Authorization
+
+- Every protected request must verify authentication.
+- Verify ACTIVE wedding membership.
+- Verify wedding ownership and role permissions.
+- Never trust a client-provided `weddingId` without authorization checks.
+- Apply authorization in Express middleware and service functions.
+
+## 7.3 Token Security
+
+- Store invitation and public access token hashes.
+- Use cryptographically secure random tokens.
+- Implement expiration and revocation.
+- Rate-limit token validation endpoints.
+
+## 7.4 Data Isolation
+
+- Every wedding-specific query must be scoped to `weddingId`.
+- Prevent cross-wedding access.
+- Validate referenced documents against the same wedding.
+- Verify that referenced events belong to the same wedding.
+
+---
+
+# 8. Data Consistency and Transactions
+
+MongoDB references are used for relationships between independent collections.
+
+MongoDB transactions are used when a business operation updates multiple collections and must succeed or fail atomically.
+
+Transactions require a MongoDB deployment that supports them, such as a replica set or sharded cluster.
+
+## 8.1 Wedding Creation
+
+1. Create wedding.
+2. Create ADMIN membership.
+3. Commit transaction.
+
+If membership creation fails, the wedding creation must be rolled back.
+
+## 8.2 Manager Approval
+
+1. Validate pending membership request.
+2. Verify ADMIN authorization.
+3. Activate membership.
+4. Update invitation status where applicable.
+5. Commit transaction.
+
+Use transactions only where atomic multi-document updates are required.
+
+---
+
+# 9. Data Lifecycle and Deletion
+
+- Removing a member must not delete historical audit logs.
+- Deleting a wedding must account for all related records.
+- Gallery asset deletion must also handle the corresponding external storage object.
+- Revoked invitation tokens must no longer grant access.
+- Expired invitation records may be cleaned up using TTL indexes.
+- Audit records should be retained according to the application's retention policy.
+- Historical references should be handled according to the deletion policy.
+
+---
+
+# 10. MERN Backend Database Module Structure
+
+Each collection belongs to its respective Express backend module.
+
+```text
+backend/
+└── src/
+    ├── modules/
+    │   ├── users/
+    │   │   └── user.model.js
+    │   │
+    │   ├── weddings/
+    │   │   └── wedding.model.js
+    │   │
+    │   ├── members/
+    │   │   └── weddingMember.model.js
+    │   │
+    │   ├── invitations/
+    │   │   └── managerInvitation.model.js
+    │   │
+    │   ├── events/
+    │   │   └── event.model.js
+    │   │
+    │   ├── guests/
+    │   │   └── guest.model.js
+    │   │
+    │   ├── gallery/
+    │   │   └── galleryAsset.model.js
+    │   │
+    │   ├── public-access/
+    │   │   └── publicAccessToken.model.js
+    │   │
+    │   └── audit-logs/
+    │       └── auditLog.model.js
+    │
+    ├── config/
+    │   └── database.js
+    │
+    └── server.js
+```
+
+Database connection:
+
+```javascript
+import mongoose from "mongoose";
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+
+    console.log("MongoDB connected successfully");
+  } catch (error) {
+    console.error("MongoDB connection failed:", error);
+    process.exit(1);
+  }
+};
+
+export default connectDB;
+```
+
+The Express server should start accepting requests only after the database connection succeeds.
+
+---
+
+# 11. Important Database Design Decisions
+
+| Decision | Selected Approach |
+|---|---|
+| Database | MongoDB Atlas |
+| Database strategy | Shared database |
+| Tenant isolation | weddingId |
+| ODM | Mongoose |
+| Request validation | Zod |
+| User accounts | Separate users collection |
+| Workspace roles | ADMIN, MANAGER |
+| Guests | No accounts |
+| Invitations | Token-based |
+| Website access | Public token-based |
+| Gallery access | Separate gallery token |
+| Gallery storage | Cloudinary |
+| Relationships | ObjectId references |
+| Data consistency | MongoDB transactions where required |
+| Backend | Node.js + Express.js |
+| Frontend | React.js + Vite |
+
+---
+
+# 12. Open Product Decisions
+
+The following decisions must be resolved before final implementation.
+
+## 12.1 Event-wise RSVP
+
+The product requirements originally include event-wise guest RSVP.
+
+However, the current database design does not contain an RSVP collection or event-wise RSVP records.
+
+If event-wise RSVP is required, introduce a separate `guestInvitations` collection with:
+
+- `weddingId`
+- `guestId`
+- `eventId`
+- `status`
+- `tokenHash`
+- `respondedAt`
+
+A unique compound index on `{ weddingId, guestId, eventId }` can prevent duplicate invitations for the same guest and event.
+
+## 12.2 Cameraman Access
+
+Determine whether cameramen will receive:
+
+- Dedicated upload-only access through a secure link.
+- Authorized MANAGER membership.
+
+A separate upload-only permission is preferable to giving cameramen full MANAGER permissions.
+
+## 12.3 Gallery Sharing
+
+Determine whether public gallery access applies to:
+
+- The entire gallery.
+- Selected albums or events.
+
+The current design supports visibility at the individual gallery asset level.
+
+## 12.4 Tasks and Expenses
+
+The original product requirements include task management, contributions, and expenses.
+
+These are excluded from the current nine-collection scope.
+
+Before implementation, decide whether they are intentionally deferred or should be included in the first database release.
+
+---
+
+# 13. Final Database Architecture
+
+**Database:** MongoDB Atlas
+**Initial Collections:** 9
+
+| No. | Collection |
+|---:|---|
+| 1 | users |
+| 2 | weddings |
+| 3 | weddingMembers |
+| 4 | managerInvitations |
+| 5 | events |
+| 6 | guests |
+| 7 | galleryAssets |
+| 8 | publicAccessTokens |
+| 9 | auditLogs |
+
+**Implementation Architecture:** MERN Stack with a modular Express backend, Mongoose models, Zod request validation, and wedding-level multi-tenant data isolation.
+
+**Document Status:** Initial MERN Database Design Complete.
+
+**Next Document:** API Design Document.

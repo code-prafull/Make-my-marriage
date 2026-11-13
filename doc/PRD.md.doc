@@ -1,0 +1,1086 @@
+PRD
+
+
+# Product Requirements Document (PRD)
+## Indian Wedding Management Platform
+
+**Version:** 1.0
+**Status:** Development Ready
+**Platform:** Responsive Web Application
+**Technology:** MERN Stack
+**Architecture:** Modular Monolith
+**Target Market:** Indian Families
+
+---
+
+# 1. Product Overview
+
+## 1.1 Product Vision
+
+Build a centralized wedding management platform that enables Indian families to plan, organize, and coordinate their entire wedding through one shared workspace.
+
+The platform will combine wedding events, family collaboration, guest invitations, event-wise RSVP, task management, financial contributions, expense tracking, personalized wedding websites, and shared photo galleries.
+
+The goal is to replace scattered WhatsApp conversations, spreadsheets, paper records, and separate photo-sharing services with one organized application.
+
+## 1.2 Problem Statement
+
+Organizing an Indian wedding involves multiple ceremonies, family members, guests, schedules, responsibilities, and financial transactions.
+
+Families commonly face these problems:
+
+- Wedding information is scattered across multiple communication channels.
+- Managing multiple ceremonies and schedules is difficult.
+- Guests repeatedly ask for event timings, venues, and invitation details.
+- Tracking attendance across individual ceremonies is cumbersome.
+- Contributions and expenses between families are difficult to reconcile.
+- Wedding photographs are scattered across different devices.
+
+The platform solves these problems through a centralized wedding workspace.
+
+## 1.3 Product Goals
+
+1. Manage all wedding events from one dashboard.
+2. Allow family members to collaborate and manage responsibilities.
+3. Simplify guest invitations and event-specific RSVP.
+4. Track financial contributions and expenses.
+5. Generate personalized wedding websites using predefined templates.
+6. Provide centralized photo storage and sharing.
+7. Maintain secure access control between wedding workspaces.
+
+## 1.4 Non-Goals
+
+The MVP will not include:
+
+- Vendor marketplace or booking.
+- Online payment processing.
+- AI-based photo recognition.
+- Drag-and-drop website editor.
+- Native Android or iOS applications.
+- Automated WhatsApp messaging.
+- Multi-language support.
+- Advanced analytics or AI wedding planning.
+
+---
+
+# 2. Technology Stack
+
+## 2.1 Frontend
+
+- React.js
+- Vite
+- React Router DOM
+- Tailwind CSS
+- TanStack Query
+- Axios
+- React Hook Form
+- Zod
+- Zustand
+- Lucide React
+
+## 2.2 Backend
+
+- Node.js
+- Express.js
+- REST APIs
+- Mongoose
+- JWT authentication
+- Cookie-based authentication
+- Zod request validation
+- Nodemailer with an email delivery provider
+- Multer for file upload handling
+
+## 2.3 Database and Storage
+
+- MongoDB Atlas
+- Cloudinary or compatible object storage for images
+
+## 2.4 Architecture
+
+The application will follow a **Modular Monolith Architecture**.
+
+All backend modules will exist within one Express application but maintain separate responsibilities.
+
+The application will not use microservices in the MVP.
+
+---
+
+# 3. User Roles
+
+The platform supports three types of users.
+
+## 3.1 Administrator
+
+The bride and groom are the primary wedding administrators.
+
+Permissions:
+
+- Create wedding workspace.
+- Manage wedding settings.
+- Invite workspace members.
+- Manage events and tasks.
+- Manage guests and invitations.
+- Manage contributions and expenses.
+- Customize wedding website.
+- Upload and manage photographs.
+- Control gallery and website visibility.
+- Perform administrator-only operations.
+
+## 3.2 Wedding Manager
+
+A registered member responsible for helping organize the wedding.
+
+Permissions:
+
+- View wedding dashboard.
+- Manage events.
+- Manage tasks and assignments.
+- Manage guests and invitations.
+- Manage RSVP settings.
+- Manage financial records.
+- Customize wedding website.
+- Upload and manage photographs.
+
+Restrictions:
+
+- Cannot change administrator ownership.
+- Cannot perform protected workspace deletion operations.
+- Cannot perform administrator-only account operations.
+
+## 3.3 Guest
+
+Guests do not require registration or platform accounts.
+
+Permissions:
+
+- View wedding invitation.
+- View event information.
+- Submit event-specific RSVP.
+- View shared photo gallery.
+- Download permitted photographs.
+
+Restrictions:
+
+- Cannot access management dashboard.
+- Cannot manage wedding records.
+- Cannot upload photographs.
+- Cannot edit or delete photographs.
+
+---
+
+# 4. Functional Requirements
+
+## FR-01: Authentication and Authorization
+
+### Features
+
+- User registration using name, email, and password.
+- Email verification.
+- User login and logout.
+- Forgot-password functionality.
+- Password reset through secure email links.
+- JWT-based authentication using secure HttpOnly cookies.
+- Protected frontend routes.
+- Backend authentication middleware.
+- Role-based authorization.
+- Wedding membership verification.
+
+### Business Rules
+
+- Every registered user has an individual account.
+- Shared accounts are not supported.
+- A user can belong to multiple weddings.
+- The same user can have different roles in different weddings.
+- A user can access only workspaces where they have valid membership.
+- Role permissions must be enforced on the backend.
+
+### Acceptance Criteria
+
+- Unauthorized users cannot access protected APIs.
+- Invalid credentials are rejected.
+- Expired authentication sessions are handled securely.
+- A user cannot access another wedding's private information.
+
+## FR-02: Wedding Workspace
+
+### Features
+
+- Create wedding workspace.
+- Store couple names and wedding date.
+- Edit wedding information.
+- Invite additional administrators and managers.
+- View all associated weddings.
+- Switch between multiple wedding workspaces.
+
+### Workspace Information
+
+- Wedding title.
+- Bride's name.
+- Groom's name.
+- Wedding date.
+- Workspace creator.
+- Website visibility.
+- Gallery access configuration.
+
+### Acceptance Criteria
+
+- A user can create a wedding workspace.
+- The creator automatically receives ADMIN membership.
+- Invited members must authenticate before joining.
+- Duplicate workspace memberships are prevented.
+
+## FR-03: Wedding Dashboard
+
+### Dashboard Information
+
+- Wedding name and date.
+- Upcoming events.
+- Total events.
+- Pending tasks.
+- Completed tasks.
+- Total guests.
+- RSVP summaries.
+- Total contributions.
+- Total expenses.
+- Remaining financial balance.
+- Recent gallery uploads.
+
+### Quick Actions
+
+- Add event.
+- Add guest.
+- Create task.
+- Add contribution.
+- Add expense.
+- Upload photograph.
+
+### Acceptance Criteria
+
+- Dashboard information is calculated from database records.
+- Dashboard updates when relevant records change.
+- Upcoming events appear chronologically.
+- Data is isolated by wedding workspace.
+
+## FR-04: Event Management
+
+### Features
+
+- Create events.
+- Edit events.
+- Delete events.
+- View all events.
+- Create custom events.
+- Display chronological schedules.
+
+### Suggested Events
+
+- Haldi.
+- Mehendi.
+- Sangeet.
+- Wedding.
+- Reception.
+
+### Event Information
+
+- Event name.
+- Description.
+- Date.
+- Start time.
+- End time.
+- Venue name.
+- Venue address.
+- Google Maps link.
+- Event instructions.
+
+### Acceptance Criteria
+
+- Multiple events can belong to one wedding.
+- Invalid event dates are rejected.
+- End time cannot be earlier than start time.
+- Event-related tasks, RSVPs, and photographs must be handled safely when an event is deleted.
+
+## FR-05: Task Management
+
+### Features
+
+- Create tasks.
+- Edit tasks.
+- Delete tasks.
+- Assign tasks to workspace members.
+- Reassign responsibilities.
+- Filter tasks by event.
+- Filter tasks by assignee.
+- Filter tasks by status.
+- Filter tasks by due date.
+
+### Task Information
+
+- Title.
+- Description.
+- Event association.
+- Assignee.
+- Due date.
+- Priority.
+- Status.
+
+### Task Status
+
+- TODO.
+- IN_PROGRESS.
+- COMPLETED.
+
+### Priority
+
+- LOW.
+- MEDIUM.
+- HIGH.
+
+### Acceptance Criteria
+
+- Tasks can only be assigned to valid wedding members.
+- Task completion updates dashboard statistics.
+- Overdue tasks are identified automatically.
+
+## FR-06: Guest Management
+
+### Features
+
+- Add guests.
+- Edit guest records.
+- Delete guests.
+- Organize guests by household or group.
+- Associate guests with multiple events.
+- Generate invitation links.
+- Track invitation status.
+
+### Guest Information
+
+- Full name.
+- Email.
+- Phone number.
+- Household/group.
+- Associated events.
+
+### Acceptance Criteria
+
+- Guests do not need registered accounts.
+- Guest records belong to a specific wedding.
+- Guest information cannot be accessed by unauthorized users.
+- A guest can be invited to multiple events.
+
+## FR-07: Event-Wise RSVP
+
+### Features
+
+- Generate secure invitation links.
+- Open invitation pages without login.
+- Display invited events.
+- Accept or decline individual events.
+- Record attendee count.
+- Store response timestamps.
+- View RSVP summaries.
+
+### RSVP Status
+
+- PENDING.
+- ACCEPTED.
+- DECLINED.
+
+### Invitation Status
+
+- PENDING.
+- SENT.
+- FAILED.
+
+### Business Rules
+
+- Each guest-event relationship has an independent RSVP.
+- Attendee count cannot exceed the permitted invitation limit.
+- Duplicate submissions must be handled consistently.
+- Guests cannot modify unrelated invitation records.
+- Invitation tokens must be unguessable and securely stored.
+
+### Acceptance Criteria
+
+- Guests can RSVP without registering.
+- RSVP responses for different events remain independent.
+- Dashboard attendance summaries update correctly.
+
+## FR-08: Email Invitations and Reminders
+
+### Features
+
+- Send workspace member invitations.
+- Send guest invitation emails.
+- Send RSVP reminders.
+- Send upcoming-event reminders.
+- Track email delivery status.
+- Log email failures.
+- Allow manual reminder initiation.
+
+### Business Rules
+
+- Emails are sent only to valid addresses.
+- Duplicate reminders must be prevented within the configured reminder window.
+- Failed deliveries must be logged.
+- WhatsApp sharing is manual.
+- Automated WhatsApp and SMS messaging are excluded.
+
+## FR-09: Wedding Website Builder
+
+### Features
+
+- Predefined wedding website templates.
+- Template selection.
+- Wedding website customization.
+- Live preview.
+- Publish and unpublish website.
+- Generate shareable website URL.
+- Configure website visibility.
+
+### Editable Content
+
+- Couple names.
+- Wedding date.
+- Welcome message.
+- Couple story.
+- Event schedules.
+- Venue information.
+- Photographs.
+- Theme settings.
+- RSVP link.
+
+### Visibility
+
+- PUBLIC.
+- INVITATION_ONLY.
+
+### Acceptance Criteria
+
+- Users can publish a website using predefined templates.
+- Website changes appear on the published page.
+- Public websites are accessible without login.
+- Invitation-only websites enforce their configured access policy.
+- Website visibility is independent of gallery visibility.
+
+## FR-10: Contribution Management
+
+### Features
+
+- Add contributions.
+- Edit contributions.
+- Delete contributions.
+- View contribution history.
+- Filter contributions by funding category.
+- Calculate contribution totals.
+
+### Contribution Information
+
+- Contributor name.
+- Amount.
+- Contribution date.
+- Funding category.
+- Description.
+- Notes.
+
+### Funding Categories
+
+- BRIDE_FAMILY.
+- GROOM_FAMILY.
+- SHARED.
+
+## FR-11: Expense Management
+
+### Features
+
+- Add expenses.
+- Edit expenses.
+- Delete expenses.
+- Associate expenses with events.
+- Track payment status.
+- Filter expenses by category.
+- View expense history.
+
+### Expense Information
+
+- Expense title.
+- Expense category.
+- Amount.
+- Date.
+- Event association.
+- Funding category.
+- Person who paid.
+- Payment status.
+- Notes.
+
+### Financial Calculation
+
+Remaining balance is calculated as:
+
+Remaining Balance = Total Contributions - Total Expenses.
+
+Calculations must be performed independently for:
+
+- Bride's family.
+- Groom's family.
+- Shared funds.
+
+The overall balance is the sum of these three balances.
+
+All monetary values will be stored as integer paise to avoid floating-point precision issues.
+
+### Acceptance Criteria
+
+- Financial totals update after record changes.
+- Negative or invalid monetary amounts are rejected.
+- Contributions and expenses remain separate records.
+- No actual payments or money transfers are processed.
+
+## FR-12: Photo Gallery
+
+### Features
+
+- Wedding photo gallery.
+- Event-based photo organization.
+- Image uploads by administrators and managers.
+- Image previews.
+- Full-size viewing.
+- Photo downloads.
+- Photo deletion.
+- Shared gallery links.
+
+### Storage
+
+- MongoDB stores image metadata.
+- Cloudinary or object storage stores actual image files.
+
+### Gallery Access
+
+- Administrators and managers can upload and manage photos.
+- Guests can view and download permitted photographs.
+- Guests cannot upload or delete photographs.
+- Anyone possessing the valid gallery link can view the gallery.
+
+### Security
+
+- Validate file content and file type.
+- Enforce maximum file size.
+- Reject unsupported files.
+- Protect upload and deletion APIs.
+- Support gallery-link revocation or regeneration.
+
+## FR-13: Notifications
+
+MVP notification types:
+
+- Member invitation.
+- Guest invitation.
+- RSVP reminder.
+- Upcoming-event reminder.
+
+Email delivery will be handled through a configured email provider.
+
+WhatsApp sharing will remain manual.
+
+The system must avoid duplicate notifications within configured scheduling rules.
+
+---
+
+# 5. Database Design
+
+MongoDB will use the following collections:
+
+| Collection | Purpose |
+|---|---|
+| users | Registered accounts |
+| weddings | Wedding workspaces |
+| weddingMembers | Workspace membership |
+| memberInvitations | Member invitations |
+| events | Wedding events |
+| tasks | Wedding responsibilities |
+| guests | Guest records |
+| invitations | Guest invitations and RSVP |
+| contributions | Financial contributions |
+| expenses | Financial expenses |
+| galleryPhotos | Photo metadata |
+| weddingWebsites | Website configuration |
+| passwordResets | Password recovery |
+| emailLogs | Email delivery tracking |
+
+### Database Rules
+
+1. Every wedding-specific record must contain `weddingId`.
+2. Unique compound indexes must prevent duplicate memberships and guest-event invitations.
+3. Sensitive invitation tokens must be hashed.
+4. Monetary values must use integer paise.
+5. MongoDB transactions should be used for operations requiring multiple document changes.
+6. All private database queries must verify wedding membership.
+7. Object storage references must be stored instead of image binaries.
+
+---
+
+# 6. Backend Architecture
+
+The backend will follow:
+
+**Routes → Middleware → Controllers → Services → Models**
+
+### Main Backend Modules
+
+1. Authentication.
+2. Wedding Workspace.
+3. Members.
+4. Events.
+5. Tasks.
+6. Guests.
+7. Invitations and RSVP.
+8. Contributions.
+9. Expenses.
+10. Wedding Website.
+11. Gallery.
+12. Notifications.
+13. Dashboard.
+
+### Middleware
+
+- Authentication middleware.
+- Workspace membership middleware.
+- Role authorization middleware.
+- Request validation middleware.
+- File upload middleware.
+- Centralized error handling.
+
+### API Base URL
+
+`/api/v1`
+
+### Authentication APIs
+
+- POST `/auth/register`
+- POST `/auth/login`
+- POST `/auth/logout`
+- POST `/auth/forgot-password`
+- POST `/auth/reset-password`
+
+### Wedding APIs
+
+- GET `/weddings`
+- POST `/weddings`
+- GET `/weddings/:weddingId`
+- PATCH `/weddings/:weddingId`
+
+### Member APIs
+
+- GET `/weddings/:weddingId/members`
+- POST `/weddings/:weddingId/members/invitations`
+- POST `/member-invitations/:token/accept`
+
+### Event APIs
+
+- GET `/weddings/:weddingId/events`
+- POST `/weddings/:weddingId/events`
+- PATCH `/events/:eventId`
+- DELETE `/events/:eventId`
+
+### Task APIs
+
+- GET `/weddings/:weddingId/tasks`
+- POST `/weddings/:weddingId/tasks`
+- PATCH `/tasks/:taskId`
+- DELETE `/tasks/:taskId`
+
+### Guest and RSVP APIs
+
+- GET `/weddings/:weddingId/guests`
+- POST `/weddings/:weddingId/guests`
+- PATCH `/guests/:guestId`
+- DELETE `/guests/:guestId`
+- POST `/weddings/:weddingId/invitations`
+- GET `/public/invitations/:token`
+- POST `/public/invitations/:token/rsvp`
+
+### Financial APIs
+
+- GET `/weddings/:weddingId/contributions`
+- POST `/weddings/:weddingId/contributions`
+- PATCH `/contributions/:id`
+- DELETE `/contributions/:id`
+- GET `/weddings/:weddingId/expenses`
+- POST `/weddings/:weddingId/expenses`
+- PATCH `/expenses/:id`
+- DELETE `/expenses/:id`
+- GET `/weddings/:weddingId/financial-summary`
+
+### Website APIs
+
+- GET `/weddings/:weddingId/website`
+- PUT `/weddings/:weddingId/website`
+- GET `/public/weddings/:slug`
+
+### Gallery APIs
+
+- POST `/weddings/:weddingId/gallery/uploads`
+- GET `/public/galleries/:token`
+- GET `/weddings/:weddingId/gallery`
+- DELETE `/gallery/photos/:photoId`
+
+Every endpoint must have defined authentication requirements, authorization rules, request validation, response formats, and error handling.
+
+---
+
+# 7. Frontend Architecture
+
+## Authenticated Pages
+
+1. Login.
+2. Registration.
+3. Forgot Password.
+4. Wedding Creation.
+5. Wedding Dashboard.
+6. Event Management.
+7. Event Details.
+8. Task Management.
+9. Guest Management.
+10. Invitation Management.
+11. Contribution Management.
+12. Expense Management.
+13. Financial Summary.
+14. Website Builder.
+15. Photo Gallery.
+16. Member Management.
+17. Wedding Settings.
+
+## Public Pages
+
+1. Public Wedding Website.
+2. Guest Invitation.
+3. RSVP Page.
+4. Shared Photo Gallery.
+5. Member Invitation Acceptance.
+
+## Frontend Architecture Rules
+
+- Use reusable components.
+- Keep API calls separate from UI components.
+- Use TanStack Query for server state.
+- Use Zustand only for necessary client state.
+- Use protected routes for authenticated pages.
+- Use public routes for guest-facing pages.
+- Handle loading, empty, success, error, and validation states.
+- Confirm destructive actions.
+
+---
+
+# 8. Project Folder Structure
+
+## Backend
+
+```text
+backend/
+├── src/
+│   ├── config/
+│   ├── modules/
+│   │   ├── auth/
+│   │   ├── wedding/
+│   │   ├── members/
+│   │   ├── events/
+│   │   ├── tasks/
+│   │   ├── guests/
+│   │   ├── invitations/
+│   │   ├── finance/
+│   │   ├── website/
+│   │   ├── gallery/
+│   │   ├── notifications/
+│   │   └── dashboard/
+│   │
+│   ├── middleware/
+│   ├── utils/
+│   ├── jobs/
+│   ├── app.js
+│   └── server.js
+│
+├── .env
+├── .env.example
+└── package.json
+```
+
+## Frontend
+
+```text
+frontend/
+├── src/
+│   ├── assets/
+│   ├── components/
+│   │   ├── ui/
+│   │   ├── common/
+│   │   ├── layout/
+│   │   └── shared/
+│   │
+│   ├── modules/
+│   │   ├── auth/
+│   │   ├── dashboard/
+│   │   ├── weddings/
+│   │   ├── events/
+│   │   ├── tasks/
+│   │   ├── guests/
+│   │   ├── invitations/
+│   │   ├── finance/
+│   │   ├── website/
+│   │   ├── gallery/
+│   │   └── members/
+│   │
+│   ├── hooks/
+│   ├── lib/
+│   ├── routes/
+│   ├── store/
+│   ├── utils/
+│   ├── App.jsx
+│   └── main.jsx
+│
+├── .env.example
+└── package.json
+```
+
+---
+
+# 9. Non-Functional Requirements
+
+## Security
+
+- Password hashing.
+- Secure HttpOnly cookies.
+- CSRF protection.
+- Role-based authorization.
+- Workspace-level data isolation.
+- Secure invitation tokens.
+- Rate limiting.
+- Input validation.
+- File upload validation.
+- Protected environment variables.
+
+## Performance
+
+- Typical API response target: under 500 ms at p95 under the agreed MVP test load, excluding third-party services and large file transfers.
+- Pagination for large lists.
+- Lazy loading for images.
+- Optimized gallery thumbnails.
+- Efficient MongoDB queries and indexes.
+- Dashboard aggregation rather than loading entire collections.
+
+## Responsiveness
+
+- Desktop support.
+- Tablet support.
+- Mobile support.
+- Responsive dashboard and navigation.
+- Accessible forms and controls.
+
+## Reliability
+
+- Centralized error handling.
+- Production logging.
+- Email delivery tracking.
+- Database backup strategy.
+- Recovery procedures.
+- Graceful third-party service failure handling.
+
+---
+
+# 10. MVP Development Phases
+
+## Phase 1: Foundation
+
+- Frontend and backend setup.
+- MongoDB connection.
+- Authentication.
+- Email verification.
+- Wedding workspace.
+- Membership system.
+- Role-based authorization.
+
+**Milestone:** Users can create wedding workspaces and securely invite members.
+
+## Phase 2: Wedding Operations
+
+- Event management.
+- Task management.
+- Task assignments.
+- Dashboard.
+
+**Milestone:** Families can manage events and responsibilities.
+
+## Phase 3: Guests and Invitations
+
+- Guest management.
+- Event-specific invitations.
+- RSVP without registration.
+- Email invitations.
+- Email reminders.
+- Manual WhatsApp sharing.
+
+**Milestone:** Guests can receive invitations and independently RSVP to multiple events.
+
+## Phase 4: Financial Management
+
+- Contributions.
+- Expenses.
+- Funding categories.
+- Financial summaries.
+
+**Milestone:** Accurate contribution and expense tracking.
+
+## Phase 5: Wedding Website
+
+- Template selection.
+- Website customization.
+- Preview.
+- Visibility settings.
+- Publishing.
+
+**Milestone:** Couples can publish personalized wedding websites.
+
+## Phase 6: Photo Gallery
+
+- Object storage integration.
+- Authenticated uploads.
+- Event-based photo organization.
+- Public gallery links.
+- Photo management.
+
+**Milestone:** Members can upload and guests can view photographs.
+
+## Phase 7: Production Readiness
+
+- Security testing.
+- API testing.
+- Mobile testing.
+- Performance testing.
+- Deployment.
+- Monitoring.
+- Backups.
+
+**Milestone:** Production-ready MVP.
+
+---
+
+# 11. Testing Requirements
+
+The following scenarios must pass:
+
+### Authentication
+
+- Invalid login rejected.
+- Unauthorized API access rejected.
+- Expired sessions handled.
+- Password recovery works.
+
+### Authorization
+
+- Managers cannot perform protected admin operations.
+- Users cannot access unrelated weddings.
+- Workspace invitations cannot be reused after acceptance.
+
+### Events and Tasks
+
+- Event CRUD works.
+- Task assignment validates membership.
+- Dashboard counts match underlying records.
+
+### Guests and RSVP
+
+- Guest RSVP works without login.
+- Event RSVP responses remain independent.
+- Invalid invitation tokens are rejected.
+- Duplicate submissions are handled consistently.
+
+### Financial Management
+
+- Contributions and expenses are calculated correctly.
+- Editing records updates summaries.
+- Deleting records does not corrupt balances.
+
+### Website and Gallery
+
+- Public website access works.
+- Invitation-only access is enforced.
+- Gallery links work.
+- Unauthorized uploads are rejected.
+- Invalid files are rejected.
+- Photo deletion handles object storage correctly.
+
+### Production
+
+- Responsive UI works.
+- Third-party failures are handled.
+- Sensitive data is not exposed.
+- Backups and recovery are tested.
+
+---
+
+# 12. Success Metrics
+
+- Weddings successfully created.
+- Additional members invited.
+- Events created per wedding.
+- Guest invitation acceptance rate.
+- RSVP completion rate.
+- Task completion rate.
+- Financial records created.
+- Websites successfully published.
+- Photos uploaded per wedding.
+- Email delivery failure rate.
+- Unauthorized access attempts.
+
+Metrics must be collected with appropriate privacy protections.
+
+---
+
+# 13. Key Engineering Decisions
+
+| Area | Decision |
+|---|---|
+| Architecture | Modular Monolith |
+| Frontend | React + Vite |
+| Backend | Node + Express |
+| Database | MongoDB Atlas |
+| ODM | Mongoose |
+| Authentication | JWT + HttpOnly cookies |
+| Authorization | Wedding membership + roles |
+| Validation | Zod |
+| Server State | TanStack Query |
+| Client State | Zustand |
+| Image Storage | Cloudinary or object storage |
+| Email | Nodemailer + provider |
+| Scheduling | Node Cron initially |
+| API Style | Versioned REST APIs |
+| Currency | INR in integer paise |
+
+---
+
+# 14. Definition of Done
+
+The MVP is ready for release when:
+
+1. All in-scope modules work end to end.
+2. Authentication and authorization work correctly.
+3. Wedding-level data isolation is verified.
+4. Guests can RSVP without registration.
+5. Email invitations and reminders work.
+6. Contributions and expenses calculate correctly.
+7. Wedding websites can be published.
+8. Photo upload and viewing work correctly.
+9. The application works on mobile and desktop.
+10. Critical security testing passes.
+11. Deployment, monitoring, and backups are configured.
+
+---
+
+# Final Product Definition
+
+The Indian Wedding Management Platform is a responsive MERN Stack application that enables Indian families to coordinate their entire wedding through one centralized workspace.
+
+It provides event management, family collaboration, guest invitations, event-wise RSVP, task management, financial contribution tracking, expense management, personalized wedding websites, and a shared photo gallery.
+
+The MVP prioritizes security, data isolation, ease of use, and reliable execution of core wedding-management workflows.
+
+The architecture will remain a modular monolith to keep development and maintenance manageable while allowing future expansion.

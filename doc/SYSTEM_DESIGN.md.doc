@@ -1,0 +1,798 @@
+# System Design Document (SDD)
+## Indian Wedding Management Platform — MERN Stack
+
+**Document Version:** 1.0
+**Architecture:** Modular Monolith
+**Technology Stack:** MERN (MongoDB, Express.js, React, Node.js)
+
+---
+
+# 1. System Overview
+
+The Indian Wedding Management Platform is a web-based application that helps families organize and manage wedding-related activities through a centralized workspace.
+
+The system provides:
+
+- Wedding workspace management.
+- Family member collaboration.
+- Event management.
+- Guest management and RSVP.
+- Task management.
+- Contributions and expense tracking.
+- Personalized wedding website.
+- Photo gallery management.
+- Email notifications and reminders.
+
+The platform follows a **client-server architecture** with a separate React frontend and Express backend.
+
+# 2. Technology Stack
+
+## 2.1 Frontend
+
+| Technology | Purpose |
+|---|---|
+| React.js | UI development |
+| Vite | Frontend build tool |
+| React Router | Client-side routing |
+| Tailwind CSS | Styling |
+| TanStack Query | Server-state management |
+| Axios | API communication |
+| Zustand | Global client state |
+| React Hook Form | Form management |
+| Zod | Form validation |
+
+## 2.2 Backend
+
+| Technology | Purpose |
+|---|---|
+| Node.js | JavaScript runtime |
+| Express.js | REST API development |
+| Mongoose | MongoDB object modeling |
+| JWT | Authentication |
+| bcrypt | Password hashing |
+| Zod | Request validation |
+| Multer | File upload handling |
+| Nodemailer | Email notifications |
+| Helmet | HTTP security headers |
+| Express Rate Limit | API rate limiting |
+
+## 2.3 Database and Infrastructure
+
+| Technology | Purpose |
+|---|---|
+| MongoDB Atlas | Primary database |
+| Cloudinary | Image storage |
+| Email Provider | Transactional emails |
+| Render | Backend deployment |
+| Vercel | Frontend deployment |
+| GitHub | Version control |
+
+# 3. High-Level Architecture
+
+The application follows a three-layer architecture:
+
+1. Presentation Layer — React frontend.
+2. Application Layer — Node.js and Express backend.
+3. Data Layer — MongoDB database and Cloudinary storage.
+
+```text
+                  CLIENT
+                    |
+                    v
+             React Application
+                    |
+                    v
+              React Router
+                    |
+                    v
+               Axios Client
+                    |
+              HTTPS Requests
+                    |
+                    v
+             Express Server
+                    |
+          -----------------------
+          |          |          |
+          v          v          v
+      Middleware  Controllers  Routes
+          |          |
+          |          v
+          |        Services
+          |          |
+          ---------- |
+                     v
+               Mongoose Models
+                     |
+                     v
+                 MongoDB
+
+External Services:
+    |---- Cloudinary
+    |---- Email Provider
+```
+
+# 4. Frontend Architecture
+
+The frontend is developed using React and Vite.
+
+React Router manages navigation, while TanStack Query handles API data fetching, caching, and synchronization.
+
+## 4.1 Frontend Folder Structure
+
+```text
+frontend/
+└── src/
+    ├── app/
+    │   ├── router.jsx
+    │   └── providers/
+    │       └── AppProviders.jsx
+    │
+    ├── assets/
+    │
+    ├── components/
+    │   ├── ui/
+    │   ├── common/
+    │   └── shared/
+    │
+    ├── layouts/
+    │   ├── PublicLayout.jsx
+    │   ├── DashboardLayout.jsx
+    │   └── WeddingLayout.jsx
+    │
+    ├── pages/
+    │   ├── public/
+    │   │   ├── LandingPage.jsx
+    │   │   ├── LoginPage.jsx
+    │   │   └── SignupPage.jsx
+    │   │
+    │   ├── dashboard/
+    │   │   └── DashboardPage.jsx
+    │   │
+    │   ├── weddings/
+    │   │   ├── WeddingOverview.jsx
+    │   │   ├── EventsPage.jsx
+    │   │   ├── GuestsPage.jsx
+    │   │   ├── ExpensesPage.jsx
+    │   │   ├── TasksPage.jsx
+    │   │   └── GalleryPage.jsx
+    │   │
+    │   ├── invitations/
+    │   │   └── ManagerInvitePage.jsx
+    │   │
+    │   ├── website/
+    │   │   └── WeddingWebsitePage.jsx
+    │   │
+    │   └── profile/
+    │       └── ProfilePage.jsx
+    │
+    ├── features/
+    │   ├── auth/
+    │   ├── weddings/
+    │   ├── members/
+    │   ├── events/
+    │   ├── guests/
+    │   ├── expenses/
+    │   ├── tasks/
+    │   ├── gallery/
+    │   └── website/
+    │
+    ├── hooks/
+    ├── services/
+    │   ├── api.js
+    │   └── auth.service.js
+    │
+    ├── store/
+    ├── utils/
+    ├── constants/
+    └── main.jsx
+```
+
+## 4.2 Frontend Routing Architecture
+
+Routes are divided into three categories:
+
+### A. Public Routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Landing page |
+| `/login` | User login |
+| `/signup` | User registration |
+
+### B. Protected Routes
+
+| Route | Purpose |
+|---|---|
+| `/dashboard` | User dashboard |
+| `/weddings/:weddingId` | Wedding workspace |
+| `/weddings/:weddingId/events` | Event management |
+| `/weddings/:weddingId/guests` | Guest management |
+| `/weddings/:weddingId/expenses` | Expense management |
+| `/weddings/:weddingId/tasks` | Task management |
+| `/weddings/:weddingId/gallery` | Gallery management |
+| `/profile` | User profile |
+
+### C. Token-Based Public Routes
+
+| Route | Purpose |
+|---|---|
+| `/invite/:token` | Manager invitation |
+| `/wedding/:token` | Public wedding website |
+
+Frontend route protection improves navigation and user experience. Actual authorization is always enforced by the backend.
+
+# 5. Backend Architecture
+
+The backend follows a **modular monolith architecture**.
+
+Each business feature has its own module containing routes, controllers, services, models, and validators where required.
+
+## 5.1 Backend Folder Structure
+
+```text
+backend/
+└── src/
+    ├── config/
+    │   ├── database.js
+    │   ├── cloudinary.js
+    │   └── environment.js
+    │
+    ├── middlewares/
+    │   ├── auth.middleware.js
+    │   ├── membership.middleware.js
+    │   ├── role.middleware.js
+    │   ├── validate.middleware.js
+    │   ├── rateLimit.middleware.js
+    │   └── error.middleware.js
+    │
+    ├── modules/
+    │   ├── auth/
+    │   ├── users/
+    │   ├── weddings/
+    │   ├── members/
+    │   ├── invitations/
+    │   ├── events/
+    │   ├── guests/
+    │   ├── tasks/
+    │   ├── expenses/
+    │   ├── contributions/
+    │   ├── gallery/
+    │   ├── website/
+    │   └── notifications/
+    │
+    ├── utils/
+    │   ├── ApiError.js
+    │   ├── ApiResponse.js
+    │   ├── asyncHandler.js
+    │   └── token.js
+    │
+    ├── app.js
+    └── server.js
+```
+
+## 5.2 Module Structure
+
+Each module follows this structure:
+
+```text
+events/
+├── event.model.js
+├── event.routes.js
+├── event.controller.js
+├── event.service.js
+├── event.validation.js
+└── event.constants.js
+```
+
+Responsibilities:
+
+- **Model:** MongoDB schema and indexes.
+- **Routes:** API endpoint definitions.
+- **Controller:** Request and response handling.
+- **Service:** Business logic.
+- **Validation:** Request data validation.
+- **Constants:** Module-specific enums and configuration.
+
+Controllers should remain thin. Business logic belongs in services.
+
+# 6. Authentication and Authorization
+
+## 6.1 Authentication
+
+The platform uses JWT-based authentication.
+
+Authentication flow:
+
+```text
+User
+ |
+ v
+Login Form
+ |
+ v
+POST /api/v1/auth/login
+ |
+ v
+Validate Credentials
+ |
+ v
+Verify Password
+ |
+ v
+Generate JWT
+ |
+ v
+Set HttpOnly Cookie
+ |
+ v
+Authenticated User
+```
+
+Security requirements:
+
+- Passwords are hashed using bcrypt.
+- JWT is stored in an HttpOnly cookie.
+- Cookies use Secure in production and an appropriate SameSite policy.
+- Authentication endpoints are rate-limited.
+- Logout clears the authentication cookie.
+- Cookie-based authentication requests use CSRF protection.
+
+## 6.2 Authorization Roles
+
+The platform supports two authenticated workspace roles:
+
+| Role | Permissions |
+|---|---|
+| ADMIN | Full wedding workspace control |
+| MANAGER | Manage wedding operations |
+
+Guests do not require platform accounts.
+
+A user's role is determined by their membership in a specific wedding. A user may have different roles in different weddings.
+
+## 6.3 Authorization Flow
+
+```text
+Incoming API Request
+        |
+        v
+Authentication Middleware
+        |
+        v
+Extract User ID
+        |
+        v
+Check Wedding Membership
+        |
+        v
+Check Membership Status
+        |
+        v
+Check Role Permissions
+        |
+        v
+Execute Controller
+        |
+        v
+Service Layer
+        |
+        v
+MongoDB
+```
+
+Every protected wedding API must verify that the authenticated user belongs to the requested wedding and has the required permission.
+
+# 7. Database Architecture
+
+The application uses MongoDB Atlas with Mongoose.
+
+## 7.1 Database Collections
+
+| Collection | Responsibility |
+|---|---|
+| users | User account information |
+| weddings | Wedding workspace details |
+| weddingMembers | User membership and role |
+| memberInvitations | Manager invitations and approval |
+| events | Wedding events |
+| tasks | Wedding task management |
+| guests | Guest information |
+| invitations | Guest-event invitations and RSVP |
+| contributions | Family contributions |
+| expenses | Wedding expenses |
+| galleryPhotos | Gallery metadata and image references |
+| weddingWebsites | Website settings and publishing |
+| passwordResets | Password reset token metadata |
+| emailLogs | Email delivery records |
+
+## 7.2 Database Relationships
+
+```text
+User
+ |
+ |---- WeddingMembers
+              |
+              v
+           Wedding
+              |
+    -------------------------
+    |       |       |       |
+    v       v       v       v
+  Events  Guests  Tasks  Expenses
+    |       |
+    |       v
+    |   Invitations
+    |
+    v
+  Invitations
+
+Wedding
+  |
+  |---- Contributions
+  |
+  |---- GalleryPhotos
+  |
+  |---- WeddingWebsite
+```
+
+Relationships are implemented using MongoDB ObjectId references where appropriate.
+
+Every wedding-owned document must include a `weddingId` field to support tenant isolation and efficient filtering.
+
+## 7.3 Important Database Rules
+
+1. Every protected resource must be scoped to its wedding.
+2. Membership is stored separately from the user document.
+3. Guest RSVP is stored per guest-event invitation.
+4. A guest may have multiple event invitations.
+5. Contributions and expenses are stored as separate financial records.
+6. Financial totals are calculated from underlying records rather than independently edited totals.
+7. Gallery images are stored in Cloudinary; MongoDB stores their metadata and storage references.
+
+# 8. API Architecture
+
+All APIs use REST architecture and JSON responses.
+
+Base URL:
+
+```text
+/api/v1
+```
+
+## 8.1 Authentication APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/auth/signup` | Register user |
+| POST | `/auth/login` | Login |
+| POST | `/auth/logout` | Logout |
+| GET | `/auth/me` | Current user |
+| POST | `/auth/forgot-password` | Request password reset |
+| POST | `/auth/reset-password` | Reset password |
+
+## 8.2 Wedding APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings` | Create wedding |
+| GET | `/weddings` | Get user's weddings |
+| GET | `/weddings/:weddingId` | Get wedding details |
+| PATCH | `/weddings/:weddingId` | Update wedding |
+| DELETE | `/weddings/:weddingId` | Delete wedding |
+
+## 8.3 Member APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings/:weddingId/members/invite` | Invite manager |
+| GET | `/weddings/:weddingId/members` | List members |
+| PATCH | `/weddings/:weddingId/members/:memberId/approve` | Approve request |
+| PATCH | `/weddings/:weddingId/members/:memberId/reject` | Reject request |
+| DELETE | `/weddings/:weddingId/members/:memberId` | Remove member |
+
+## 8.4 Event APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings/:weddingId/events` | Create event |
+| GET | `/weddings/:weddingId/events` | Get events |
+| GET | `/weddings/:weddingId/events/:eventId` | Get event |
+| PATCH | `/weddings/:weddingId/events/:eventId` | Update event |
+| DELETE | `/weddings/:weddingId/events/:eventId` | Delete event |
+
+## 8.5 Guest and RSVP APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings/:weddingId/guests` | Add guest |
+| GET | `/weddings/:weddingId/guests` | List guests |
+| PATCH | `/weddings/:weddingId/guests/:guestId` | Update guest |
+| DELETE | `/weddings/:weddingId/guests/:guestId` | Delete guest |
+| POST | `/weddings/:weddingId/invitations` | Create guest invitation |
+| GET | `/public/rsvp/:token` | Get RSVP invitation |
+| PATCH | `/public/rsvp/:token` | Submit RSVP |
+
+## 8.6 Task APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings/:weddingId/tasks` | Create task |
+| GET | `/weddings/:weddingId/tasks` | List tasks |
+| PATCH | `/weddings/:weddingId/tasks/:taskId` | Update task |
+| DELETE | `/weddings/:weddingId/tasks/:taskId` | Delete task |
+
+## 8.7 Finance APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings/:weddingId/contributions` | Add contribution |
+| GET | `/weddings/:weddingId/contributions` | List contributions |
+| POST | `/weddings/:weddingId/expenses` | Add expense |
+| GET | `/weddings/:weddingId/expenses` | List expenses |
+| PATCH | `/weddings/:weddingId/expenses/:expenseId` | Update expense |
+| DELETE | `/weddings/:weddingId/expenses/:expenseId` | Delete expense |
+
+## 8.8 Gallery APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/weddings/:weddingId/gallery/upload` | Upload photos |
+| GET | `/weddings/:weddingId/gallery` | List gallery photos |
+| DELETE | `/weddings/:weddingId/gallery/:photoId` | Delete photo |
+
+## 8.9 Public Website APIs
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/public/wedding/:token` | Get published wedding website |
+| GET | `/public/wedding/:token/gallery` | Get publicly permitted photos |
+
+# 9. File Upload Architecture
+
+Cloudinary is used for image storage.
+
+Upload flow:
+
+```text
+React Frontend
+      |
+      v
+Select Image
+      |
+      v
+Express Upload API
+      |
+      v
+Authentication + Membership Check
+      |
+      v
+File Validation
+      |
+      v
+Multer
+      |
+      v
+Cloudinary
+      |
+      v
+Save Image Metadata
+      |
+      v
+MongoDB
+```
+
+Requirements:
+
+- Validate MIME type and file size.
+- Restrict upload permissions to authorized wedding members.
+- Guests cannot upload or delete gallery photos.
+- Store Cloudinary public IDs for deletion.
+- Delete the Cloudinary asset when its associated gallery record is deleted.
+- Use signed upload workflows or server-controlled uploads with appropriate access restrictions.
+
+# 10. Manager Invitation Architecture
+
+Managers are invited through a unique token link.
+
+Flow:
+
+```text
+ADMIN
+  |
+  v
+Create Invitation
+  |
+  v
+Generate Random Token
+  |
+  v
+Hash Token
+  |
+  v
+Store Token Hash
+  |
+  v
+Send Email
+  |
+  v
+Manager Opens Link
+  |
+  v
+Validate Token
+  |
+  v
+Signup / Login
+  |
+  v
+Submit Membership Request
+  |
+  v
+ADMIN Approval
+  |
+  v
+Active Membership
+```
+
+Token requirements:
+
+- Cryptographically random tokens.
+- Only token hashes stored in MongoDB.
+- Expiration and revocation support.
+- Rate limiting on token validation.
+- Membership access is not granted until approval.
+
+# 11. Wedding Website Architecture
+
+Each wedding can have a public website.
+
+The website is accessed using a dedicated random token.
+
+Example:
+
+```text
+https://example.com/wedding/:token
+```
+
+Website content may include:
+
+- Couple information.
+- Wedding events.
+- Event dates and venues.
+- Wedding schedule.
+- Published gallery photos.
+- Customizable templates.
+
+The backend validates the token and returns only content approved for public display.
+
+# 12. Notification Architecture
+
+Nodemailer or a transactional email provider handles email notifications.
+
+Notification use cases:
+
+- Manager invitations.
+- Guest invitations.
+- RSVP confirmations.
+- Event reminders.
+- Task reminders.
+
+Email sending should be separated from the main business operation where practical. Failed emails should be logged and retried using a controlled retry strategy.
+
+# 13. Security Architecture
+
+The system implements the following security measures:
+
+| Area | Security Measure |
+|---|---|
+| Authentication | JWT in HttpOnly cookies |
+| Passwords | bcrypt hashing |
+| Authorization | Server-side RBAC |
+| Database | Wedding-level tenant isolation |
+| API | Rate limiting |
+| HTTP | Helmet security headers |
+| Validation | Zod validation |
+| File uploads | MIME and size validation |
+| Tokens | Cryptographically random tokens with hashed storage |
+| Cookies | Secure, HttpOnly, SameSite |
+| CSRF | CSRF protection for cookie-authenticated mutations |
+| Secrets | Environment variables |
+| Errors | Centralized error handling |
+
+Never trust a `weddingId`, role, user ID, or permission supplied by the frontend without verifying it on the backend.
+
+# 14. Deployment Architecture
+
+```text
+              Users
+                |
+                v
+          React Frontend
+             (Vercel)
+                |
+                v
+          HTTPS REST API
+                |
+                v
+         Express Backend
+             (Render)
+                |
+        -----------------
+        |       |       |
+        v       v       v
+     MongoDB Cloudinary Email
+      Atlas
+```
+
+Environment variables are used for database credentials, JWT secrets, Cloudinary credentials, email provider credentials, and frontend/backend URLs.
+
+Production deployment must use HTTPS and appropriately configured CORS and cookie settings.
+
+# 15. Non-Functional Requirements
+
+## Performance
+
+- Use pagination for guests, expenses, tasks, and gallery records.
+- Add indexes to frequently queried fields.
+- Avoid unnecessary database queries.
+- Use image optimization and lazy loading.
+- Cache suitable read-heavy data.
+
+## Scalability
+
+- Begin with a modular monolith.
+- Keep modules independent.
+- Use stateless API instances.
+- Use managed MongoDB infrastructure.
+- Move background work to a queue when application demand justifies it.
+
+## Reliability
+
+- Centralized error handling.
+- Database backups.
+- Email failure logging.
+- Controlled retries for background operations.
+- Input validation on every API boundary.
+
+## Maintainability
+
+- Feature-based backend modules.
+- Reusable frontend components.
+- Consistent API response formats.
+- Centralized validation and error handling.
+- Environment-specific configuration.
+
+# 16. Implementation Phases
+
+| Phase | Scope |
+|---|---|
+| Phase 1 | Project setup, authentication, user and wedding workspace |
+| Phase 2 | Members, invitations, and authorization |
+| Phase 3 | Events and tasks |
+| Phase 4 | Guests, invitations, and RSVP |
+| Phase 5 | Contributions and expenses |
+| Phase 6 | Wedding website |
+| Phase 7 | Gallery and uploads |
+| Phase 8 | Notifications, testing, and deployment |
+
+# 17. Final Architecture Decisions
+
+| Decision | Selected Approach |
+|---|---|
+| Frontend | React + Vite |
+| Backend | Node.js + Express.js |
+| Database | MongoDB Atlas |
+| ODM | Mongoose |
+| Architecture | Modular Monolith |
+| API Style | REST |
+| Authentication | JWT + HttpOnly Cookie |
+| Authorization | Membership-based RBAC |
+| Frontend Routing | React Router |
+| Server State | TanStack Query |
+| File Storage | Cloudinary |
+| Email | Nodemailer / Email Provider |
+| Deployment | Vercel + Render |
+
+**Final Decision:** The Indian Wedding Management Platform will be implemented using a separate React frontend and Express backend, backed by MongoDB Atlas. The backend will follow a modular monolith architecture with strict wedding-level authorization and isolated business modules.
+
+This document is the technical foundation for database schema design, API contracts, and implementation.

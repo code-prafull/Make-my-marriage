@@ -1,0 +1,1313 @@
+# API Design Document (ADD)
+## Indian Wedding Management Platform — MERN Stack
+
+**Version:** 1.0
+**Status:** Initial API Specification
+**Frontend:** React.js + Vite
+**Backend:** Node.js + Express.js
+**Language:** JavaScript (ES Modules)
+**Database:** MongoDB Atlas
+**ODM:** Mongoose
+**Validation:** Zod
+**Authentication:** JWT + HttpOnly Cookies
+**Architecture:** Modular Monolith
+**API Style:** REST API
+**Base URL:** `/api/v1`
+
+---
+
+# 1. API Overview
+
+## 1.1 Objective
+
+The API layer handles communication between the React frontend and backend business logic.
+
+It provides endpoints for:
+
+- User authentication.
+- User profile management.
+- Wedding workspace management.
+- Wedding member management.
+- Manager invitations.
+- Wedding event management.
+- Guest management.
+- Gallery management.
+- Public wedding website access.
+- Public gallery access.
+- Workspace activity tracking.
+
+## 1.2 API Architecture
+
+The application follows a Modular Monolith architecture.
+
+The frontend and backend are separate applications. All backend modules run inside one Express application while maintaining separate business logic.
+
+```text
+React Frontend
+      |
+      v
+React Router
+      |
+      v
+Axios API Client
+      |
+      v
+Express API Routes
+      |
+      v
+Authentication Middleware
+      |
+      v
+Authorization Middleware
+      |
+      v
+Validation Middleware
+      |
+      v
+Module Controllers
+      |
+      v
+Service Layer
+      |
+      v
+Mongoose Models
+      |
+      v
+MongoDB Atlas
+```
+
+## 1.3 Backend API Folder Structure
+
+```text
+backend/
+└── src/
+    ├── config/
+    │   ├── database.js
+    │   ├── cloudinary.js
+    │   └── environment.js
+    │
+    ├── middlewares/
+    │   ├── auth.middleware.js
+    │   ├── membership.middleware.js
+    │   ├── role.middleware.js
+    │   ├── validate.middleware.js
+    │   ├── rateLimit.middleware.js
+    │   └── error.middleware.js
+    │
+    ├── modules/
+    │   ├── auth/
+    │   │   ├── auth.routes.js
+    │   │   ├── auth.controller.js
+    │   │   ├── auth.service.js
+    │   │   └── auth.validation.js
+    │   │
+    │   ├── users/
+    │   ├── weddings/
+    │   ├── members/
+    │   ├── invitations/
+    │   ├── events/
+    │   ├── guests/
+    │   ├── gallery/
+    │   ├── public-access/
+    │   └── audit-logs/
+    │
+    ├── utils/
+    │   ├── ApiError.js
+    │   ├── ApiResponse.js
+    │   ├── asyncHandler.js
+    │   ├── token.js
+    │   └── permissions.js
+    │
+    ├── routes/
+    │   └── index.js
+    │
+    ├── app.js
+    └── server.js
+```
+
+Each feature module follows:
+
+```text
+events/
+├── event.model.js
+├── event.routes.js
+├── event.controller.js
+├── event.service.js
+└── event.validation.js
+```
+
+---
+
+# 2. API Standards
+
+## 2.1 HTTP Methods
+
+| Method | Purpose |
+|---|---|
+| GET | Retrieve resources |
+| POST | Create resources or perform actions |
+| PATCH | Update specific fields |
+| PUT | Replace a complete resource |
+| DELETE | Delete or revoke resources |
+
+## 2.2 Response Format
+
+All API responses follow a consistent structure.
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "message": "Wedding created successfully",
+  "data": {
+    "id": "wedding_object_id",
+    "title": "Rahul & Priya Wedding"
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "message": "You are not authorized to access this wedding",
+  "error": {
+    "code": "FORBIDDEN"
+  }
+}
+```
+
+## 2.3 HTTP Status Codes
+
+| Status | Meaning |
+|---|---|
+| 200 | Successful request |
+| 201 | Resource created |
+| 204 | Successful deletion without response body |
+| 400 | Invalid request |
+| 401 | Authentication required |
+| 403 | Permission denied |
+| 404 | Resource not found |
+| 409 | Resource conflict |
+| 422 | Validation failed |
+| 429 | Too many requests |
+| 500 | Internal server error |
+
+## 2.4 Pagination
+
+List APIs support pagination.
+
+Example:
+
+```http
+GET /api/v1/weddings/:weddingId/events?page=1&limit=10
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 45,
+    "totalPages": 5
+  }
+}
+```
+
+Requirements:
+
+- Default page: 1.
+- Default limit: 10.
+- Maximum limit: 100.
+- Validate pagination parameters on the backend.
+
+## 2.5 API Versioning
+
+All endpoints use:
+
+```text
+/api/v1
+```
+
+Future breaking API changes can be introduced through a new version.
+
+---
+
+# 3. Authentication APIs
+
+**Base Route:** `/api/v1/auth`
+
+Authentication APIs manage registered users and JWT sessions.
+
+## 3.1 Signup
+
+**POST** `/auth/signup`
+
+Purpose: Register a new user.
+
+Request:
+
+```json
+{
+  "name": "Rahul Singh",
+  "email": "rahul@example.com",
+  "password": "StrongPassword123"
+}
+```
+
+Response — `201 Created`:
+
+```json
+{
+  "success": true,
+  "message": "Account created successfully",
+  "data": {
+    "user": {
+      "id": "user_object_id",
+      "name": "Rahul Singh",
+      "email": "rahul@example.com",
+      "isEmailVerified": false,
+      "status": "ACTIVE"
+    }
+  }
+}
+```
+
+Business Logic:
+
+1. Validate request using Zod.
+2. Check whether email already exists.
+3. Hash password using bcrypt.
+4. Create user.
+5. Establish an authenticated session.
+6. Return safe user information.
+
+## 3.2 Login
+
+**POST** `/auth/login`
+
+Request:
+
+```json
+{
+  "email": "rahul@example.com",
+  "password": "StrongPassword123"
+}
+```
+
+Response — `200 OK`:
+
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "id": "user_object_id",
+      "name": "Rahul Singh",
+      "email": "rahul@example.com"
+    }
+  }
+}
+```
+
+Business Logic:
+
+1. Validate email and password.
+2. Find user by email.
+3. Verify password using bcrypt.
+4. Check account status.
+5. Generate JWT.
+6. Set JWT in an HttpOnly cookie.
+
+The JWT must not be returned in the response body when using cookie-based authentication.
+
+## 3.3 Logout
+
+**POST** `/auth/logout`
+
+Authentication: Required.
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Logout successful"
+}
+```
+
+The authentication cookie will be cleared using matching cookie options.
+
+## 3.4 Get Current User
+
+**GET** `/auth/me`
+
+Authentication: Required.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "user_object_id",
+    "name": "Rahul Singh",
+    "email": "rahul@example.com"
+  }
+}
+```
+
+---
+
+# 4. User APIs
+
+**Base Route:** `/api/v1/users`
+
+## 4.1 Get Profile
+
+**GET** `/users/me`
+
+Authentication: Required.
+
+Returns the authenticated user's profile.
+
+## 4.2 Update Profile
+
+**PATCH** `/users/me`
+
+Authentication: Required.
+
+Request:
+
+```json
+{
+  "name": "Rahul Kumar",
+  "phone": "9876543210",
+  "avatar": "https://example.com/avatar.jpg"
+}
+```
+
+Only allowed profile fields can be updated.
+
+## 4.3 Delete Account
+
+**DELETE** `/users/me`
+
+Authentication: Required.
+
+Account deletion must consider existing wedding ownership and membership relationships.
+
+An ADMIN cannot simply delete their account while leaving a workspace without a valid administrator.
+
+---
+
+# 5. Wedding Management APIs
+
+**Base Route:** `/api/v1/weddings`
+
+These APIs manage wedding workspaces.
+
+## 5.1 Create Wedding
+
+**POST** `/weddings`
+
+Authentication: Required.
+
+Request:
+
+```json
+{
+  "title": "Rahul & Priya Wedding",
+  "couple": {
+    "partnerOne": "Rahul",
+    "partnerTwo": "Priya"
+  },
+  "weddingDate": "2027-02-15T00:00:00.000Z",
+  "location": {
+    "venue": "Royal Palace",
+    "city": "Bhopal",
+    "state": "Madhya Pradesh",
+    "country": "India"
+  },
+  "settings": {
+    "timezone": "Asia/Kolkata",
+    "currency": "INR",
+    "language": "en"
+  }
+}
+```
+
+Response — `201 Created`:
+
+```json
+{
+  "success": true,
+  "message": "Wedding created successfully",
+  "data": {
+    "id": "wedding_object_id",
+    "title": "Rahul & Priya Wedding",
+    "status": "PLANNING",
+    "role": "ADMIN"
+  }
+}
+```
+
+Business Logic:
+
+1. Authenticate user.
+2. Validate request.
+3. Generate a unique slug.
+4. Create wedding.
+5. Create ADMIN membership.
+6. Execute both database operations in a MongoDB transaction.
+7. Return the created wedding.
+
+## 5.2 Get All User Weddings
+
+**GET** `/weddings`
+
+Authentication: Required.
+
+Returns all weddings where the authenticated user has ACTIVE membership.
+
+## 5.3 Get Wedding Details
+
+**GET** `/weddings/:weddingId`
+
+Authentication: Required.
+
+Authorization:
+
+- User must have ACTIVE membership.
+- ADMIN and MANAGER can access workspace details.
+
+## 5.4 Update Wedding
+
+**PATCH** `/weddings/:weddingId`
+
+Authentication: Required.
+
+Permission: ADMIN or MANAGER.
+
+Request:
+
+```json
+{
+  "title": "Rahul & Priya Wedding Celebration",
+  "description": "Our wedding celebration",
+  "location": {
+    "city": "Indore"
+  }
+}
+```
+
+Only explicitly allowed fields can be updated.
+
+## 5.5 Delete Wedding
+
+**DELETE** `/weddings/:weddingId`
+
+Authentication: Required.
+
+Permission: ADMIN only.
+
+Deletion must follow the wedding data lifecycle policy.
+
+The initial implementation should prefer archival through `status: "ARCHIVED"` rather than immediate permanent deletion.
+
+---
+
+# 6. Wedding Member APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/members`
+
+These APIs manage workspace membership.
+
+## 6.1 Get All Members
+
+**GET** `/weddings/:weddingId/members`
+
+Permission: ACTIVE ADMIN or MANAGER.
+
+## 6.2 Get Member Details
+
+**GET** `/weddings/:weddingId/members/:memberId`
+
+Permission: ACTIVE ADMIN or MANAGER.
+
+## 6.3 Approve Membership Request
+
+**PATCH** `/weddings/:weddingId/members/:memberId/approve`
+
+Permission: ADMIN only.
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Membership approved successfully"
+}
+```
+
+Business Logic:
+
+1. Verify ADMIN authorization.
+2. Find membership belonging to the requested wedding.
+3. Verify membership is PENDING.
+4. Update status to ACTIVE.
+5. Record `approvedBy` and `joinedAt`.
+6. Update related invitation status where applicable.
+
+## 6.4 Reject Membership Request
+
+**PATCH** `/weddings/:weddingId/members/:memberId/reject`
+
+Permission: ADMIN only.
+
+## 6.5 Update Member Role
+
+**PATCH** `/weddings/:weddingId/members/:memberId/role`
+
+Permission: ADMIN only.
+
+Request:
+
+```json
+{
+  "role": "MANAGER"
+}
+```
+
+Only supported workspace roles can be assigned.
+
+## 6.6 Remove Member
+
+**DELETE** `/weddings/:weddingId/members/:memberId`
+
+Permission: ADMIN only.
+
+Rules:
+
+- ADMIN cannot remove the sole administrator.
+- Historical audit records must be preserved.
+- Removed users must lose access immediately.
+
+---
+
+# 7. Manager Invitation APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/invitations`
+
+These APIs manage manager invitations.
+
+## 7.1 Create Invitation
+
+**POST** `/weddings/:weddingId/invitations`
+
+Permission: ADMIN only.
+
+Request:
+
+```json
+{
+  "email": "manager@example.com"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Invitation created successfully"
+}
+```
+
+Business Logic:
+
+1. Verify ADMIN permissions.
+2. Validate email.
+3. Check for an existing active invitation or membership.
+4. Generate a cryptographically random token.
+5. Hash token.
+6. Store token hash in MongoDB.
+7. Set expiration.
+8. Send invitation link through email.
+
+## 7.2 Get Invitations
+
+**GET** `/weddings/:weddingId/invitations`
+
+Permission: ADMIN only.
+
+## 7.3 Revoke Invitation
+
+**DELETE** `/weddings/:weddingId/invitations/:invitationId`
+
+Permission: ADMIN only.
+
+## 7.4 Validate Invitation
+
+**GET** `/invitations/:token`
+
+Authentication: Not required.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "weddingTitle": "Rahul & Priya Wedding",
+    "email": "manager@example.com",
+    "status": "PENDING",
+    "expiresAt": "2027-01-15T00:00:00.000Z"
+  }
+}
+```
+
+The response must not expose the token hash or internal invitation credentials.
+
+## 7.5 Accept Invitation and Submit Membership Request
+
+**POST** `/invitations/:token/accept`
+
+Authentication: Required.
+
+Request:
+
+```json
+{
+  "confirm": true
+}
+```
+
+Business Logic:
+
+1. Validate invitation token.
+2. Check expiration and revocation.
+3. Verify authenticated user's email matches invited email.
+4. Check for existing membership.
+5. Create PENDING membership.
+6. Update invitation status to ACCEPTED.
+7. Wait for ADMIN approval.
+
+Accepting an invitation does not automatically grant workspace access.
+
+---
+
+# 8. Event Management APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/events`
+
+These APIs manage wedding ceremonies.
+
+## 8.1 Create Event
+
+**POST** `/weddings/:weddingId/events`
+
+Permission: ADMIN or MANAGER.
+
+Request:
+
+```json
+{
+  "name": "Haldi Ceremony",
+  "description": "Traditional Haldi celebration",
+  "date": "2027-02-13T00:00:00.000Z",
+  "startTime": "10:00",
+  "endTime": "13:00",
+  "venue": {
+    "name": "Royal Palace",
+    "address": "Bhopal, Madhya Pradesh"
+  },
+  "visibility": "PUBLIC"
+}
+```
+
+## 8.2 Get All Events
+
+**GET** `/weddings/:weddingId/events`
+
+Permission: ACTIVE ADMIN or MANAGER.
+
+Query parameters:
+
+```http
+?page=1&limit=10&status=UPCOMING&sortBy=date&order=asc
+```
+
+## 8.3 Get Event Details
+
+**GET** `/weddings/:weddingId/events/:eventId`
+
+Permission: ACTIVE ADMIN or MANAGER.
+
+## 8.4 Update Event
+
+**PATCH** `/weddings/:weddingId/events/:eventId`
+
+Permission: ADMIN or MANAGER.
+
+## 8.5 Delete Event
+
+**DELETE** `/weddings/:weddingId/events/:eventId`
+
+Permission: ADMIN or MANAGER.
+
+Before deleting an event, the backend must handle its references in guest and gallery records.
+
+---
+
+# 9. Guest Management APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/guests`
+
+Guests do not require authentication or user accounts.
+
+These management APIs are accessible only to authorized workspace members.
+
+## 9.1 Add Guest
+
+**POST** `/weddings/:weddingId/guests`
+
+Permission: ADMIN or MANAGER.
+
+Request:
+
+```json
+{
+  "name": "Amit Sharma",
+  "email": "amit@example.com",
+  "phone": "9876543210",
+  "familyGroup": "Sharma Family",
+  "side": "GROOM",
+  "eventIds": [
+    "event_object_id_1",
+    "event_object_id_2"
+  ]
+}
+```
+
+Every referenced event must belong to the same wedding.
+
+## 9.2 Get All Guests
+
+**GET** `/weddings/:weddingId/guests`
+
+Permission: ADMIN or MANAGER.
+
+Query parameters:
+
+```http
+?page=1&limit=20&side=GROOM&search=Amit
+```
+
+## 9.3 Get Guest Details
+
+**GET** `/weddings/:weddingId/guests/:guestId`
+
+Permission: ADMIN or MANAGER.
+
+## 9.4 Update Guest
+
+**PATCH** `/weddings/:weddingId/guests/:guestId`
+
+Permission: ADMIN or MANAGER.
+
+## 9.5 Delete Guest
+
+**DELETE** `/weddings/:weddingId/guests/:guestId`
+
+Permission: ADMIN or MANAGER.
+
+## 9.6 Bulk Import Guests
+
+**POST** `/weddings/:weddingId/guests/bulk`
+
+Permission: ADMIN or MANAGER.
+
+Purpose:
+
+- Import multiple guests.
+- Validate individual guest records.
+- Associate guests with wedding events.
+- Return successful and failed records.
+
+Bulk imports should have a configured maximum record count and clear partial-failure reporting.
+
+---
+
+# 10. Gallery Management APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/gallery`
+
+These APIs manage photographs and videos.
+
+Actual media files are stored in Cloudinary. MongoDB stores media metadata.
+
+## 10.1 Get Gallery Assets
+
+**GET** `/weddings/:weddingId/gallery`
+
+Permission: ACTIVE ADMIN or MANAGER.
+
+Query parameters:
+
+```http
+?page=1&limit=20&mediaType=IMAGE&eventId=event_object_id
+```
+
+## 10.2 Get Gallery Asset Details
+
+**GET** `/weddings/:weddingId/gallery/:assetId`
+
+Permission: ADMIN or MANAGER.
+
+## 10.3 Generate Upload Signature
+
+**POST** `/weddings/:weddingId/gallery/upload-signature`
+
+Permission: ACTIVE authorized uploader.
+
+Request:
+
+```json
+{
+  "fileName": "haldi.jpg",
+  "mimeType": "image/jpeg",
+  "fileSize": 2048000,
+  "mediaType": "IMAGE",
+  "eventId": "event_object_id"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "cloudName": "cloudinary_name",
+    "apiKey": "cloudinary_api_key",
+    "timestamp": 1790000000,
+    "signature": "generated_signature",
+    "folder": "weddings/wedding_id/gallery"
+  }
+}
+```
+
+The backend generates a signed upload request. The frontend uses it to upload directly to Cloudinary.
+
+The API secret must never be sent to the frontend.
+
+## 10.4 Complete Upload
+
+**POST** `/weddings/:weddingId/gallery/complete`
+
+Permission: ACTIVE authorized uploader.
+
+Request:
+
+```json
+{
+  "publicId": "weddings/wedding_id/gallery/file_id",
+  "fileName": "haldi.jpg",
+  "mediaType": "IMAGE",
+  "mimeType": "image/jpeg",
+  "fileSize": 2048000,
+  "eventId": "event_object_id",
+  "visibility": "PRIVATE"
+}
+```
+
+Business Logic:
+
+1. Verify uploader authorization.
+2. Verify the Cloudinary public ID belongs to the wedding's permitted folder.
+3. Verify the asset exists using Cloudinary's server-side API.
+4. Validate media type and size.
+5. Create gallery metadata record.
+6. Return the created asset.
+
+The backend must not trust arbitrary Cloudinary URLs or public IDs submitted by the frontend.
+
+## 10.5 Update Gallery Visibility
+
+**PATCH** `/weddings/:weddingId/gallery/:assetId`
+
+Permission: ADMIN or MANAGER.
+
+Request:
+
+```json
+{
+  "visibility": "PUBLIC"
+}
+```
+
+## 10.6 Delete Gallery Asset
+
+**DELETE** `/weddings/:weddingId/gallery/:assetId`
+
+Permission: ADMIN or MANAGER.
+
+The backend deletes the corresponding Cloudinary asset and updates its MongoDB record.
+
+---
+
+# 11. Public Wedding Website APIs
+
+**Base Route:** `/api/v1/public/wedding`
+
+These APIs allow visitors to access published wedding information without registering or logging in.
+
+## 11.1 Get Public Wedding Website
+
+**GET** `/public/wedding/:token`
+
+Authentication: Not required.
+
+Business Logic:
+
+1. Validate public website token.
+2. Check token expiration and revocation.
+3. Check wedding website enabled status.
+4. Check website visibility.
+5. Return only public wedding information.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "title": "Rahul & Priya Wedding",
+    "couple": {
+      "partnerOne": "Rahul",
+      "partnerTwo": "Priya"
+    },
+    "weddingDate": "2027-02-15T00:00:00.000Z",
+    "location": {
+      "venue": "Royal Palace",
+      "city": "Bhopal"
+    },
+    "events": [],
+    "template": "traditional"
+  }
+}
+```
+
+Private events, guest information, and workspace member information must never be exposed through this API.
+
+---
+
+# 12. Public Gallery APIs
+
+**Base Route:** `/api/v1/public/gallery`
+
+These APIs provide access to publicly shared wedding photographs.
+
+## 12.1 Get Public Gallery
+
+**GET** `/public/gallery/:token`
+
+Authentication: Not required.
+
+Business Logic:
+
+1. Validate gallery token.
+2. Verify token status.
+3. Check token expiration.
+4. Fetch only PUBLIC and ACTIVE gallery assets.
+5. Return paginated gallery data.
+
+## 12.2 Get Public Gallery Asset
+
+**GET** `/public/gallery/:token/:assetId`
+
+Authentication: Not required.
+
+Only publicly accessible assets can be returned.
+
+Private gallery assets must never be exposed through this route.
+
+---
+
+# 13. Public Access Token Management APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/public-access`
+
+These APIs manage access to the wedding website and gallery.
+
+## 13.1 Generate Access Token
+
+**POST** `/weddings/:weddingId/public-access`
+
+Permission: ADMIN only.
+
+Request:
+
+```json
+{
+  "purpose": "WEDDING_WEBSITE"
+}
+```
+
+The same endpoint supports:
+
+```json
+{
+  "purpose": "GALLERY_VIEW"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Access token generated successfully",
+  "data": {
+    "id": "token_object_id",
+    "token": "raw_random_token",
+    "purpose": "WEDDING_WEBSITE"
+  }
+}
+```
+
+The raw token is returned only at creation time. Only its hash is stored in MongoDB.
+
+## 13.2 Get Active Tokens
+
+**GET** `/weddings/:weddingId/public-access`
+
+Permission: ADMIN only.
+
+Token hashes must never be returned.
+
+## 13.3 Revoke Token
+
+**DELETE** `/weddings/:weddingId/public-access/:tokenId`
+
+Permission: ADMIN only.
+
+Rules:
+
+- Website and gallery tokens are independent.
+- Only token hashes are stored.
+- Raw tokens are returned only when generated.
+- Revoked tokens cannot be reused.
+
+---
+
+# 14. Audit Log APIs
+
+**Base Route:** `/api/v1/weddings/:weddingId/audit-logs`
+
+These APIs allow workspace administrators to inspect important activity.
+
+## 14.1 Get Audit Logs
+
+**GET** `/weddings/:weddingId/audit-logs`
+
+Permission: ADMIN only.
+
+Query parameters:
+
+```http
+?page=1&limit=20&action=EVENT_CREATED
+```
+
+Audit records must be created by backend business logic, not directly by frontend requests.
+
+Audit logs should not be editable through normal application APIs.
+
+---
+
+# 15. Authorization Matrix
+
+| Module | ADMIN | MANAGER | Guest |
+|---|---|---|---|
+| Wedding | Full access | View and update | Public information only |
+| Members | Full access | View members | No access |
+| Invitations | Full access | No access | No access |
+| Events | Full access | Full access | Public events only |
+| Guests | Full access | Full access | No access |
+| Gallery | Full access | Full access | Public assets only |
+| Public Website | Manage | No access | View |
+| Public Tokens | Manage | No access | No access |
+| Audit Logs | View | No access | No access |
+
+Cameraman upload-only access is not included in the current role model and requires a separate authorization design.
+
+---
+
+# 16. Middleware and Authorization Flow
+
+Every protected API request must pass through the following process.
+
+```text
+Incoming API Request
+        |
+        v
+Extract JWT Cookie
+        |
+        v
+Verify JWT
+        |
+        v
+Get Authenticated User
+        |
+        v
+Extract weddingId
+        |
+        v
+Verify Wedding Exists
+        |
+        v
+Check ACTIVE Membership
+        |
+        v
+Verify Role Permissions
+        |
+        v
+Validate Request Using Zod
+        |
+        v
+Execute Service Logic
+        |
+        v
+Return API Response
+```
+
+Public token APIs use token validation instead of normal user authentication.
+
+Authorization must also verify that the requested resource belongs to the same wedding.
+
+---
+
+# 17. API Security Requirements
+
+1. Use HTTPS in production.
+2. Store JWT in secure HttpOnly cookies.
+3. Apply CSRF protection to cookie-authenticated state-changing requests.
+4. Configure CORS for the authorized frontend origin.
+5. Validate incoming request bodies using Zod.
+6. Apply rate limiting to authentication and token validation APIs.
+7. Hash invitation and public access tokens.
+8. Never expose password hashes or token hashes.
+9. Verify wedding membership for every protected workspace operation.
+10. Prevent cross-wedding ObjectId access.
+11. Validate uploaded file size, MIME type, and actual file content.
+12. Restrict gallery uploads to authorized users.
+13. Avoid exposing private gallery storage URLs.
+14. Use safe error messages without leaking internal database information.
+15. Validate ownership of every referenced document.
+
+---
+
+# 18. API Module Summary
+
+| Module | Endpoints |
+|---|---|
+| Authentication | Signup, Login, Logout, Me |
+| Users | Get Profile, Update Profile, Delete Account |
+| Weddings | Create, List, Get, Update, Delete |
+| Members | List, Get, Approve, Reject, Update Role, Remove |
+| Invitations | Create, List, Validate, Accept, Revoke |
+| Events | Create, List, Get, Update, Delete |
+| Guests | Create, List, Get, Update, Delete, Bulk Import |
+| Gallery | List, Get, Upload Signature, Complete Upload, Update, Delete |
+| Public Website | Get Public Wedding |
+| Public Gallery | Get Gallery, Get Asset |
+| Public Access | Generate, List, Revoke Tokens |
+| Audit Logs | Get Activity History |
+
+---
+
+# 19. Express Route Registration
+
+All module routers are registered through a central route file.
+
+Example:
+
+```javascript
+import { Router } from "express";
+
+import authRoutes from "../modules/auth/auth.routes.js";
+import userRoutes from "../modules/users/user.routes.js";
+import weddingRoutes from "../modules/weddings/wedding.routes.js";
+import invitationRoutes from "../modules/invitations/invitation.routes.js";
+import publicRoutes from "../modules/public-access/public.routes.js";
+
+const router = Router();
+
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/weddings", weddingRoutes);
+router.use("/invitations", invitationRoutes);
+router.use("/public", publicRoutes);
+
+export default router;
+```
+
+In `app.js`:
+
+```javascript
+import express from "express";
+import apiRoutes from "./routes/index.js";
+
+const app = express();
+
+app.use(express.json());
+
+app.use("/api/v1", apiRoutes);
+
+export default app;
+```
+
+Each module is responsible for registering its own subroutes, controllers, and middleware.
+
+---
+
+# 20. Final Architecture Decisions
+
+| Category | Decision |
+|---|---|
+| API Architecture | REST |
+| Base Route | `/api/v1` |
+| Frontend | React + Vite |
+| Backend | Node.js + Express.js |
+| Language | JavaScript |
+| Authentication | JWT |
+| Session Storage | HttpOnly Cookie |
+| Authorization | Membership-based RBAC |
+| Validation | Zod |
+| Database | MongoDB Atlas |
+| ODM | Mongoose |
+| Workspace Roles | ADMIN, MANAGER |
+| Guest Authentication | Not Required |
+| Manager Invitation | Secure Token |
+| Website Access | Public Token |
+| Gallery Access | Separate Public Token |
+| File Storage | Cloudinary |
+| Architecture | Modular Monolith |
+| Expenses APIs | Not Included |
+| Tasks APIs | Not Included |
+
+---
+
+**Document Status:** Initial MERN API Design Complete.
+
+**Next Step:** Backend Implementation Planning.
+
+**Implementation Architecture:** React frontend + Express REST API + MongoDB Atlas + Mongoose, using feature-based modules and server-side authorization.
